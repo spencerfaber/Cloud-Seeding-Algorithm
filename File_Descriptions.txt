@@ -1,0 +1,8 @@
+Required files for UAV
+csa.py - Code for ingesting instrument data, calculating CDP parameters, and predicting if cloud conditions would be
+suitable for seeding
+lookup_tables - Directory containing .csv tables used to determine seed score
+
+Extra files for development/testing
+test_csa.py - Function for passing test data to csa.py
+test_data - Directory containing dummy CDP, POPS, and MIP data for testing

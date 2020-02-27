@@ -17,7 +17,7 @@ while count < len(mip_data_df):
     cdp_data = cdp_data_df.iloc[count, :].values.tolist()
 
     bar = csa(mip_data, pops_data, cdp_data)
-    foo[count,:] = bar
+    # foo[count,:] = bar
     count += 1
 
 plt.plot(foo[:,0],foo[:,6])
