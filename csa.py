@@ -67,15 +67,15 @@ def csa(mip_data, pops_data, cdp_data):
         # Calculate CDP number conc. using CDP binned counts, CDP sample area (constant), MIP True Air Speed
         cdp_c = np.sum(cdp_bin_c_float)  # Total CDP counts from bin counts
         cdp_sv_cm = (cdp_sa / 100) * (tas * 100)  # CDP sample volume (cm^3)
-        cdp_n = round(cdp_c / cdp_sv_cm, 5)  # CDP number concentration rounded to 5 dec. places (#/cm^3)
+        cdp_n = np.float32(round(cdp_c / cdp_sv_cm, 5))  # CDP number concentration rounded to 5 dec. places (#/cm^3)
 
         # Calculate CDP LWC using CDP binned counts, CDP bin midpoint, CDP sample area (constant), MIP True Air Speed
         cdp_int_mass = np.sum(cdp_bin_c_float * 1e-12 * (np.pi / 6) * cdp_bin_mid ** 3)  # Integrated water mass (g)
         cdp_sv_m = cdp_sa / 1e6 * tas  # CDP sample volume (m^3)
-        cdp_lwc = round(cdp_int_mass / cdp_sv_m, 5)  # CDP LWC rounded to 5 dec. points (g/m^3)
+        cdp_lwc = np.float32(round(cdp_int_mass / cdp_sv_m, 5))  # CDP LWC rounded to 5 dec. points (g/m^3)
     else: # Set CDP number conc. and LWC to 0 if TAS is 0 to avoid divide by 0 errors
-        cdp_n = 0
-        cdp_lwc = 0
+        cdp_n = np.float32(0)
+        cdp_lwc = np.float32(0)
 
     # Calculate CDP MVD using CDP binned counts, CDP bin low bounds, CDP sample area, MIP True Air Speed
     if np.sum(cdp_bin_c_float) > 0 and tas > 0: # Only calc MVD if TAS and total CDP counts are > 0
@@ -84,10 +84,10 @@ def csa(mip_data, pops_data, cdp_data):
         cdp_vol_pro_c_sum = np.cumsum(cdp_vol_pro) # Cumulative sum of water volume fraction
         i_v50 = np.argwhere(cdp_vol_pro_c_sum > 0.5)[0][0] # Index of smallest bin with at least half of volume fraction
 
-        cdp_mvd = round(cdp_bin_low[i_v50] + ((0.5 - cdp_vol_pro_c_sum[i_v50 - 1]) / cdp_vol_pro[i_v50]) * \
-                  (cdp_bin_low[i_v50 + 1] - cdp_bin_low[i_v50]), 5) # CDP MVD rounded to 5 dec points
+        cdp_mvd = np.float32(round(cdp_bin_low[i_v50] + ((0.5 - cdp_vol_pro_c_sum[i_v50 - 1]) / cdp_vol_pro[i_v50]) * \
+                  (cdp_bin_low[i_v50 + 1] - cdp_bin_low[i_v50]), 5)) # CDP MVD rounded to 5 dec points
     else: # Set CDP MVD to 0 if CDP counts or TAS is 0 to avoid errors
-        cdp_mvd = 0
+        cdp_mvd = np.float32(0)
     # ---------------------------------------------------------------------------------------------------------
 
     # ------------------------------------------Evaluate Seedability-------------------------------------------
