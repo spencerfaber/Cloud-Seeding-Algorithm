@@ -16,7 +16,8 @@ from datetime import datetime
 import math, glob
 
 # ------------------------------------------------------Constants-------------------------------------------------------
-cdp_bin_mid = np.concatenate((np.arange(2.5,14.5,1),np.arange(15,51,2))) # Midpoint of CDP bins (um)
+cdp_bin_mid = np.concatenate((np.arange(2.5,14.5,1),np.arange(15,51,2))) # Midpoints of CDP bins (um)
+cdp_bin_up = np.concatenate((np.arange(3,14,1),np.arange(14,52,2))) # Upper bounds of CDP bins (um)
 # ----------------------------------------------------End Constants-----------------------------------------------------
 
 # -------------------------------------------------------Settings-------------------------------------------------------
@@ -64,16 +65,34 @@ def csa(mip_data, pops_data, cdp_data):
     pops_n = pops_data[3]  # POPS number concentration (cm^-3)
 
     # --------------------------------------Calculate CDP Bulk Parameters--------------------------------------
-    # Calculate CDP number conc. using CDP binned counts, CDP sample area (constant), MIP True Air Speed
-    cdp_c = np.sum(cdp_data[15:45])  # Total CDP counts from bin counts
-    cdp_sv_cm = (cdp_sa / 100) * (tas * 100)  # CDP sample volume (cm^3)
-    cdp_n = round(cdp_c / cdp_sv_cm, 5)  # CDP number concentration rounded to 5 dec. places (#/cm^3)
-
-    # Calculate CDP LWC using CDP binned counts, CDP bin midpoint, CDP sample area (constant), MIP True Air Speed
     cdp_bin_c_float = np.array(cdp_data[15:45], dtype=np.float32)  # CDP bin counts as float
-    cdp_int_mass = np.sum(cdp_bin_c_float * 1e-12 * (np.pi / 6) * cdp_bin_mid ** 3)  # Integrated water mass (g)
-    cdp_sv_m = cdp_sa / 1e6 * tas  # CDP sample volume (m^3)
-    cdp_lwc = round(cdp_int_mass / cdp_sv_m, 5)  # CDP LWC rounded to 5 dec. points (g/m^3)
+
+    if tas > 0:
+        # Calculate CDP number conc. using CDP binned counts, CDP sample area (constant), MIP True Air Speed
+        cdp_c = np.sum(cdp_bin_c_float)  # Total CDP counts from bin counts
+        cdp_sv_cm = (cdp_sa / 100) * (tas * 100)  # CDP sample volume (cm^3)
+        cdp_n = round(cdp_c / cdp_sv_cm, 5)  # CDP number concentration rounded to 5 dec. places (#/cm^3)
+
+        # Calculate CDP LWC using CDP binned counts, CDP bin midpoint, CDP sample area (constant), MIP True Air Speed
+        cdp_int_mass = np.sum(cdp_bin_c_float * 1e-12 * (np.pi / 6) * cdp_bin_mid ** 3)  # Integrated water mass (g)
+        cdp_sv_m = cdp_sa / 1e6 * tas  # CDP sample volume (m^3)
+        cdp_lwc = round(cdp_int_mass / cdp_sv_m, 5)  # CDP LWC rounded to 5 dec. points (g/m^3)
+    else:
+        cdp_n = 0
+        cdp_lwc = 0
+
+    if np.sum(cdp_bin_c_float) > 0 and tas > 0:
+        cdp_bin_vol = cdp_bin_c_float * cdp_bin_mid ** 3
+        cdp_vol_sum = np.sum(cdp_bin_vol)
+        cdp_vol_pro = cdp_bin_vol / cdp_vol_sum
+        cdp_vol_pro_c_sum = np.cumsum(cdp_vol_pro)
+        i_v50 = np.argwhere(cdp_vol_pro_c_sum > 0.5)[0][0]
+
+        cdp_mvd = cdp_bin_mid[i_v50] + ((0.5 - cdp_vol_pro_c_sum[i_v50 - 1]) / cdp_vol_pro[i_v50]) * \
+                  (cdp_bin_mid[i_v50 + 1] - cdp_bin_mid[i_v50])
+    else:
+        cdp_mvd = 0
+    print(cdp_mvd)
     # ---------------------------------------------------------------------------------------------------------
 
     # ------------------------------------------Evaluate Seedability-------------------------------------------
