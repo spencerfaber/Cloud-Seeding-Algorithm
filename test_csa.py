@@ -18,6 +18,7 @@ while count < len(mip_data_df):
 
     bar = csa(mip_data, pops_data, cdp_data)
     # foo[count,:] = bar
+    print(bar)
     count += 1
 
 plt.plot(foo[:,0],foo[:,6])

@@ -18,6 +18,7 @@ import math, glob
 # ------------------------------------------------------Constants-------------------------------------------------------
 cdp_bin_mid = np.concatenate((np.arange(2.5,14.5,1),np.arange(15,51,2))) # Midpoints of CDP bins (um)
 cdp_bin_up = np.concatenate((np.arange(3,14,1),np.arange(14,52,2))) # Upper bounds of CDP bins (um)
+cdp_bin_low = np.concatenate((np.arange(2,14,1),np.arange(14,50,2))) # Lower bounds of CDP bins (um)
 # ----------------------------------------------------End Constants-----------------------------------------------------
 
 # -------------------------------------------------------Settings-------------------------------------------------------
@@ -47,14 +48,9 @@ for key in tables.keys():                                    # Assign tables key
 
 # --------------------------------------------csa (Cloud Seeding Algorithm)---------------------------------------------
 # In: Lists of parameters output by MIP, POPS, CDP (mip_data, pops_data, cdp_data)
-# Out:
+# Out: Time (seconds in day), Latitude, Longitude, CDP Number Conc., CDP LWC, CDP MVD, Seed Score, Seed Switch
 # ----------------------------------------------------------------------------------------------------------------------
 def csa(mip_data, pops_data, cdp_data):
-    global cdp_sa  # CDP sample area (mm^2)
-    global cdp_n_cloud_thresh  # CDP conc required to declare in cloud (cm-3)
-    global tables  # Dictionary of lookup tables (as pandas dataframes) for different LCL temp
-    global tables_lcl_t_float # Numpy array of tables keys. Used for selecting best table based on LCL temp
-    global cdp_bin_mid # Midpoints of CDP bins (um)
     tas = mip_data[27]  # True Air Speed (m/s)
     pitch = mip_data[11]  # UAV pitch (deg)
     wind_w = mip_data[39]  # Vertical Wind Component (m/s)
@@ -67,7 +63,7 @@ def csa(mip_data, pops_data, cdp_data):
     # --------------------------------------Calculate CDP Bulk Parameters--------------------------------------
     cdp_bin_c_float = np.array(cdp_data[15:45], dtype=np.float32)  # CDP bin counts as float
 
-    if tas > 0:
+    if tas > 0: # Calculate CDP number conc. and LWC if TAS > 0
         # Calculate CDP number conc. using CDP binned counts, CDP sample area (constant), MIP True Air Speed
         cdp_c = np.sum(cdp_bin_c_float)  # Total CDP counts from bin counts
         cdp_sv_cm = (cdp_sa / 100) * (tas * 100)  # CDP sample volume (cm^3)
@@ -77,22 +73,21 @@ def csa(mip_data, pops_data, cdp_data):
         cdp_int_mass = np.sum(cdp_bin_c_float * 1e-12 * (np.pi / 6) * cdp_bin_mid ** 3)  # Integrated water mass (g)
         cdp_sv_m = cdp_sa / 1e6 * tas  # CDP sample volume (m^3)
         cdp_lwc = round(cdp_int_mass / cdp_sv_m, 5)  # CDP LWC rounded to 5 dec. points (g/m^3)
-    else:
+    else: # Set CDP number conc. and LWC to 0 if TAS is 0 to avoid divide by 0 errors
         cdp_n = 0
         cdp_lwc = 0
 
-    if np.sum(cdp_bin_c_float) > 0 and tas > 0:
-        cdp_bin_vol = cdp_bin_c_float * cdp_bin_mid ** 3
-        cdp_vol_sum = np.sum(cdp_bin_vol)
-        cdp_vol_pro = cdp_bin_vol / cdp_vol_sum
-        cdp_vol_pro_c_sum = np.cumsum(cdp_vol_pro)
-        i_v50 = np.argwhere(cdp_vol_pro_c_sum > 0.5)[0][0]
+    # Calculate CDP MVD using CDP binned counts, CDP bin low bounds, CDP sample area, MIP True Air Speed
+    if np.sum(cdp_bin_c_float) > 0 and tas > 0: # Only calc MVD if TAS and total CDP counts are > 0
+        cdp_bin_vol = cdp_bin_c_float * cdp_bin_low ** 3 # Binned proportional water volume of CDP distribution
+        cdp_vol_pro = cdp_bin_vol / np.sum(cdp_bin_vol) # Proportional water volume fraction in each bin
+        cdp_vol_pro_c_sum = np.cumsum(cdp_vol_pro) # Cumulative sum of water volume fraction
+        i_v50 = np.argwhere(cdp_vol_pro_c_sum > 0.5)[0][0] # Index of smallest bin with at least half of volume fraction
 
-        cdp_mvd = cdp_bin_mid[i_v50] + ((0.5 - cdp_vol_pro_c_sum[i_v50 - 1]) / cdp_vol_pro[i_v50]) * \
-                  (cdp_bin_mid[i_v50 + 1] - cdp_bin_mid[i_v50])
-    else:
+        cdp_mvd = round(cdp_bin_low[i_v50] + ((0.5 - cdp_vol_pro_c_sum[i_v50 - 1]) / cdp_vol_pro[i_v50]) * \
+                  (cdp_bin_low[i_v50 + 1] - cdp_bin_low[i_v50]), 5) # CDP MVD rounded to 5 dec points
+    else: # Set CDP MVD to 0 if CDP counts or TAS is 0 to avoid errors
         cdp_mvd = 0
-    print(cdp_mvd)
     # ---------------------------------------------------------------------------------------------------------
 
     # ------------------------------------------Evaluate Seedability-------------------------------------------
@@ -113,7 +108,7 @@ def csa(mip_data, pops_data, cdp_data):
 
     seed_switch = seed_scale(seed_score, tas, pitch) # Get binary seed flag
 
-    return [time, lat, long, seed_score, seed_switch]
+    return [time, lat, long, cdp_n, cdp_lwc, cdp_mvd, seed_score, seed_switch]
 # ------------------------------------------END csa (Cloud Seeding Algorithm)-------------------------------------------
 
 
